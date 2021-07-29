@@ -109,4 +109,49 @@
     ```
 
 ## 3. Setup webhook:
-- Document ref: https://news.cloud365.vn/ci-cd-phan-3-huong-dan-tich-hop-jenkins-va-gitlab/
+- [Document ref](https://news.cloud365.vn/ci-cd-phan-3-huong-dan-tich-hop-jenkins-va-gitlab/)
+- Gitlab:
+  - Login gitlab admin role, -> setting network  -> "Outbound requests
+    "-> add Jenkins url to whitelist or click "Allow requests to the local network from web hooks and services"
+  - Click to project -> Setting -> Webhooks -> URL (jenkins job url).
+- Jenkins:
+  - Configure -> Build Triggers -> Build when a change is pushed to GitLab. GitLab    webhook URL -> save
+
+## 4. Loi co the giap khi cai dat:
+  - Loi khi cai dat Gitlab Hook:
+    * Loi nay xay ra vi plugin "ruby-runtime" khong ho to java11, se xay ra khi cai jenkins-jdk11. Cai jenkins-jdk8 image, neu muon build code java-11 thi co the build code trong 1 docker image jdk11 khac
+
+      ```
+        stage('Gradle build') {
+            // stage nay duoc run ben trong docker image: gradle:6.7-jdk11
+            agent {
+                docker {
+                    image 'gradle:6.7-jdk11'
+                    args '-u 0:0 -v /tmp:/root/.cache' 
+                    reuseNode true
+                }
+            }
+            // nhung commands nay se duoc thuc hien trong docker container duoc run tu docker image tren.
+            steps {
+                sh 'chmod +x gradlew'
+                sh './gradlew --version'
+                sh 'echo $JAVA_HOME'
+                sh './gradlew bootJar -DskipTests'
+            }
+        }
+
+        - args '-u 0:0 -v /tmp:/root/.cache': mount user vao ben trong container
+        - reuseNode true: khi stage nay xong thi se khong xoa docker container nay, lan sau build thi khong can phai pull lai.
+      ```
+  - Loi khi cai dat Jenkins:
+  
+    ```
+      jenkins_1  | touch: cannot touch '/var/jenkins_home/copy_reference_file.log':   Permission denied
+      jenkins_1  | Can not write to /var/jenkins_home/copy_reference_file.log. Wrong volume permissions?
+    ```
+    * You must set the correct permissions in the host before you mount volumes.
+    * This will store the jenkins data in /your/home on the host. Ensure that /your/home is accessible by the jenkins user in container (jenkins user - uid 1000) or use -u some_other_user parameter with docker run.
+
+    ```
+      sudo chown -R 1000 volume_dir
+    ```
